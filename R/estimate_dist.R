@@ -2,6 +2,15 @@ library(fastverse)
 
 
 # Prep coefficients data ---------
+
+## main parameters ----------
+release <- "20250401_2021_01_02_PROD"
+aux_dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
+  fs::path(release, "_aux")
+
+
+
+## clean coeff data -----------
 fs::path("data/cmd_coeff.Rda") |>
   load()
 
@@ -33,31 +42,66 @@ CF[, `:=`(
   )
   ]
 
-
 # Quantiles
 n <- 1000
 quantiles = seq(1,n,1)/n - 0.0005
 qs <- log(quantiles/(1-quantiles))
 
 
+## MD countries
+
+md <- fs::path(aux_dir, "missing_data.qs") |>
+  qs::qread() |>
+  ftransform(id = paste(country_code, year, sep = "_"))
+
 # country estimates -------
-country_code = "ETH"
-reporting_year = 2021
 
-cf <- CF[code == country_code & year == reporting_year]
+get_cmd_welfare <- function(country_code, reporting_year, CF, qs) {
 
-stopifnot(nrow(cf) == 1)
-
-welfare <-
-  if(is.na(cf$t1_comp1)) {
-    # Tier 2
-    lny <- cf$t2_comp1 + cf$t2_qf*qs
-    exp(lny)*cf$tier2_sme
+  cf <- CF[code == country_code & year == reporting_year]
+  stopifnot(nrow(cf) == 1)
+  welfare <- if (nrow(cf) == 1) {
+    if (is.na(cf$t1_comp1)) {
+      lny <- cf$t2_comp1 + cf$t2_qf * qs
+      exp(lny) * cf$tier2_sme
+    } else {
+      lny <- cf$t1_comp1 + cf$t1_qf * qs
+      exp(lny) * cf$tier1_sme
+    }
   } else {
-    # Tier 1
-    lny <- cf$t1_comp1 + cf$t1_qf*qs
-    exp(lny)*cf$tier1_sme
+    NULL
   }
+  welfare
+}
 
+
+# country estimates -------
+l_cmd <- vector("list", length = nrow(md))
+for (i in seq_len(nrow(md))) {
+  country_code   <- md$country_code[i]
+  reporting_year <- md$year[i]
+  weight         <- md$reporting_pop[i]/length(qs)
+
+
+  welfare <- get_cmd_welfare(country_code, reporting_year, CF, qs)
+
+  if (is.null(welfare)) {
+    l_cmd[[i]] <- NULL
+  } else {
+
+    l_cmd[[i]] <- data.table(welfare = welfare,
+                             weight  = weight,
+                             area    = "national")
+  }
+}
+
+names(l_cmd) <- md[, id]
+
+# Remove NULL elements from l_cmd
+
+# Split l_cmd into two lists: non-NULL and NULL elements
+l_cmd_ok   <- l_cmd[!sapply(l_cmd, is.null)]
+l_cmd_fail <- l_cmd[sapply(l_cmd, is.null)]
+names(l_cmd_fail)
 
 
