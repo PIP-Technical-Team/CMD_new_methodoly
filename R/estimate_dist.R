@@ -1,5 +1,5 @@
 library(fastverse)
-
+source("R/utils.R")
 
 # Prep coefficients data ---------
 
@@ -54,48 +54,10 @@ md <- fs::path(aux_dir, "missing_data.qs") |>
   qs::qread() |>
   ftransform(id = paste(country_code, year, sep = "_"))
 
-# country estimates -------
 
-get_cmd_welfare <- function(country_code, reporting_year, CF, qs) {
+# Usage:
+l_cmd <- list_cmd_welfare(md, CF, qs)
 
-  cf <- CF[code == country_code & year == reporting_year]
-  stopifnot(nrow(cf) == 1)
-  welfare <- if (nrow(cf) == 1) {
-    if (is.na(cf$t1_comp1)) {
-      lny <- cf$t2_comp1 + cf$t2_qf * qs
-      exp(lny) * cf$tier2_sme
-    } else {
-      lny <- cf$t1_comp1 + cf$t1_qf * qs
-      exp(lny) * cf$tier1_sme
-    }
-  } else {
-    NULL
-  }
-  welfare
-}
-
-
-# country estimates -------
-l_cmd <- vector("list", length = nrow(md))
-for (i in seq_len(nrow(md))) {
-  country_code   <- md$country_code[i]
-  reporting_year <- md$year[i]
-  weight         <- md$reporting_pop[i]/length(qs)
-
-
-  welfare <- get_cmd_welfare(country_code, reporting_year, CF, qs)
-
-  if (is.null(welfare)) {
-    l_cmd[[i]] <- NULL
-  } else {
-
-    l_cmd[[i]] <- data.table(welfare = welfare,
-                             weight  = weight,
-                             area    = "national")
-  }
-}
-
-names(l_cmd) <- md[, id]
 
 # Remove NULL elements from l_cmd
 
