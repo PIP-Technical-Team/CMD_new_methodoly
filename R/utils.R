@@ -25,9 +25,11 @@ get_cmd_welfare <- function(country_code, reporting_year, CF, qs) {
   stopifnot(nrow(cf) == 1)
   welfare <- if (nrow(cf) == 1) {
     if (is.na(cf$t1_comp1)) {
+      # Tier 2
       lny <- cf$t2_comp1 + cf$t2_qf * qs
       exp(lny) * cf$tier2_sme
     } else {
+      # Tier 1
       lny <- cf$t1_comp1 + cf$t1_qf * qs
       exp(lny) * cf$tier1_sme
     }

@@ -42,6 +42,8 @@ CF[, `:=`(
   )
   ]
 
+CF <- CF[, .(code, year, t1_comp1, t1_qf, t2_comp1, t2_qf, tier1_sme, tier2_sme)]
+
 # Quantiles
 n <- 1000
 quantiles = seq(1,n,1)/n - 0.0005
