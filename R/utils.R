@@ -69,16 +69,67 @@ list_cmd_welfare <- function(md, CF, qs) {
     reporting_year <- md$year[i]
     weight         <- md$reporting_pop[i]/length(qs)
 
-    welfare <- get_cmd_welfare(country_code, reporting_year, CF, qs)
+    welfare <- get_cmd_welfare(country_code,
+                               reporting_year,
+                               CF,
+                               qs)
 
+    # Add attributes
+    dt <- data.table(welfare         = welfare,
+                     weight          = weight,
+                     reporting_level = "national")
+    dt <- add_cmd_attributes(dt,
+                             country_code,
+                             reporting_year)
+
+
+    # Add to list
     if (is.null(welfare)) {
       l_cmd[[i]] <- NULL
     } else {
-      l_cmd[[i]] <- data.table(welfare = welfare,
-                               weight  = weight,
-                               area    = "national")
+      l_cmd[[i]] <- dt
     }
   }
   names(l_cmd) <- md[, id]
   l_cmd
 }
+
+
+add_cmd_attributes <- function(dt, country_code, reporting_year) {
+
+  # reporting year
+  attr(dt,
+       "reporting_year") <- reporting_year
+
+  # country_code
+  attr(dt,
+       "country_code") <- country_code
+
+  # Reporting level
+  attr(dt,
+       "reporting_level_rows") <-
+    list(reporting_level = "national",
+         rows            = nrow(dt))
+
+  # dist stats
+  attr(dt,
+       "dist_stats") <- get_dist_stats(dt)
+
+  # lineup approach
+  attr(dt,
+       "lineup_approach") <- "missing_data"
+
+  dt
+
+}
+
+
+
+
+
+
+
+
+
+
+

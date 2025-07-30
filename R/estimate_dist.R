@@ -1,14 +1,20 @@
 library(fastverse)
+library(pipdata)
 source("R/utils.R")
 
 # Prep coefficients data ---------
 
 ## main parameters ----------
 release <- "20250401_2021_01_02_PROD"
+dir     <-
 aux_dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
-  fs::path(release, "_aux")
-
-
+  fs::path(release,
+           "_aux")
+# temp saving location
+save_dir <- "E:/PIP/pipapi_test_folder/20250401_2021_01_02_TEST" |>
+  fs::path("lineup_data")
+save_dir |>
+  fs::path("CMD")
 
 ## clean coeff data -----------
 fs::path("data/cmd_coeff.Rda") |>
@@ -42,23 +48,34 @@ CF[, `:=`(
   )
   ]
 
-CF <- CF[, .(code, year, t1_comp1, t1_qf, t2_comp1, t2_qf, tier1_sme, tier2_sme)]
+CF <- CF[,
+         .(code,
+           year,
+           t1_comp1,
+           t1_qf,
+           t2_comp1,
+           t2_qf,
+           tier1_sme,
+           tier2_sme)]
 
 # Quantiles
-n <- 1000
-quantiles = seq(1,n,1)/n - 0.0005
-qs <- log(quantiles/(1-quantiles))
+n         <- 1000
+quantiles <- seq(1,n,1)/n - 0.0005
+qs        <- log(quantiles/(1-quantiles))
 
 
 ## MD countries
-
 md <- fs::path(aux_dir, "missing_data.qs") |>
   qs::qread() |>
-  ftransform(id = paste(country_code, year, sep = "_"))
+  ftransform(id = paste(country_code,
+                        year,
+                        sep = "_"))
 
 
 # Usage:
-l_cmd <- list_cmd_welfare(md, CF, qs)
+l_cmd <- list_cmd_welfare(md,
+                          CF,
+                          qs)
 
 
 # Remove NULL elements from l_cmd
