@@ -11,9 +11,9 @@ aux_dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
   fs::path(release,
            "_aux")
 # temp saving location
-save_dir <- "E:/PIP/pipapi_test_folder/20250401_2021_01_02_TEST" |>
+lineup_dir <- "E:/PIP/pipapi_test_folder/20250401_2021_01_02_TEST" |>
   fs::path("lineup_data")
-save_dir |>
+save_dir <- lineup_dir |>
   fs::path("CMD")
 
 ## clean coeff data -----------
@@ -77,6 +77,15 @@ l_cmd <- list_cmd_welfare(md,
                           CF,
                           qs)
 
+# write
+write_cmd_dist(l_cmd,
+               path = save_dir)
+
+# test that it works
+ABW1986 <- load_refy("ABW",
+                     1986,
+                     path = save_dir)
+attributes(ABW1986)
 
 # Remove NULL elements from l_cmd
 

@@ -95,6 +95,14 @@ list_cmd_welfare <- function(md, CF, qs) {
 }
 
 
+#' Add important attributes to CMD data frame
+#'
+#' @param dt data frame: individual distribution from one country-year
+#' @param country_code character: character vector of length 1 giving country's iso3c code
+#' @param reporting_year numeric: vector of length 1 giving reporting year
+#'
+#' @return data frame: same as input but with added attributes
+#' @export
 add_cmd_attributes <- function(dt, country_code, reporting_year) {
 
   # reporting year
@@ -125,6 +133,38 @@ add_cmd_attributes <- function(dt, country_code, reporting_year) {
 
 
 
+
+
+
+
+
+#' Write all CMD distributions as qs files, including attributes
+#'
+#' @param l_cmd list of data frames of CMD distributions, output from [list_cmd_welfare]
+#' @param path location of where to write these files
+#'
+#' @return logical: invisible
+#' @export
+write_cmd_dist <- function(l_cmd, path) {
+
+    # all country years
+    country_years <- names(l_cmd)
+
+    lapply(cli::cli_progress_along(country_years,
+                                   total = length(country_years)),
+
+           FUN = \(i) {
+
+             x  <- l_cmd[[i]]
+             cn <- country_years[i]
+
+             qs::qsave(x    = x,
+                       file = fs::path(path,
+                                       paste0(cn,
+                                              ".qs")))
+           })
+    invisible(TRUE)
+  }
 
 
 
