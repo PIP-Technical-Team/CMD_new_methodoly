@@ -68,7 +68,8 @@ scale_weights <- function(l_cmd,
                                         "reporting_year",
                                         "reporting_level"),
                          match_type = "1:1",
-                         keep       = "left")
+                         keep       = "left",
+                         verbose    = FALSE)
 
   # Check ratio between weight sum and pop
   wt_check[, scaling_factor := reporting_pop / weight_sum]
@@ -136,7 +137,6 @@ scale_weights <- function(l_cmd,
              x
 
            })
-
 
   l_cmd_scaled
 
