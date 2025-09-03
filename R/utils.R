@@ -1,3 +1,70 @@
+#' Estimate and save country by country
+#'
+#' First load pop from aux, then go through each country and
+#' estimate CMD, scale pops, and save
+#'
+#' The reason this is used, is that when number of quantiles is larges
+#' (e.g. 100k) then the list becomes too large to keep fully in memory
+#'
+#' @param md missing data countries
+#' @param CF coefficients
+#' @param qs quantiles
+#' @param py ppp year
+#' @param dir directory for lineups
+#'
+#' @return
+#' @export
+estimate_and_write_full_cmd <- function(md,
+                                        CF,
+                                        qs,
+                                        py,
+                                        dir) {
+
+  aux_dir <- fs::path(dir,
+                      "_aux")
+  print(aux_dir)
+
+  lineup_dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
+    fs::path(release,
+             "lineup_data")
+  save_dir <- lineup_dir |>
+    fs::path("CMD")
+
+  # Load pop data
+  #--------------------------
+  pop     <- get_pop_to_scale(aux_dir = aux_dir)
+
+  # Loop country estimate & save
+  #--------------------------
+  countries <- md$country_code |>
+    funique()
+  for (x in seq_along(countries)) {
+    print(x)
+    cn <- countries[x]
+    print(cn)
+    l_cmd <- list_cmd_welfare(md |>
+                                fsubset(country_code == cn),
+                              CF,
+                              qs,
+                              py = py)
+
+    l_cmd <- scale_weights(l_cmd = l_cmd,
+                           pop   = pop)
+
+    # write
+    write_cmd_dist(l_cmd,
+                   path = save_dir)
+
+
+  }
+
+  return(invisible(TRUE))
+
+}
+
+
+
+
 # country estimates by country -------
 #' Calculate welfare distribution for a country-year
 #'
@@ -19,23 +86,37 @@
 #'
 #' @examples
 #' get_cmd_welfare("ETH", 2021, CF, qs)
-get_cmd_welfare <- function(country_code, reporting_year, CF, qs) {
+get_cmd_welfare <- function(country_code, reporting_year, CF, qs, py = 2021) {
 
   cf <- CF[code == country_code & year == reporting_year]
   stopifnot(nrow(cf) == 1)
   welfare <- if (nrow(cf) == 1) {
     if (is.na(cf$t1_comp1)) {
-      # Tier 2
       lny <- cf$t2_comp1 + cf$t2_qf * qs
-      exp(lny) * cf$tier2_sme
+      exp(lny)
     } else {
-      # Tier 1
       lny <- cf$t1_comp1 + cf$t1_qf * qs
-      exp(lny) * cf$tier1_sme
+      exp(lny)
     }
   } else {
     NULL
   }
+
+  # bottom censoring
+  if (py == 2021) {
+    bc <- 0.28
+
+  } else if (py == 2017) {
+    bc <- .25
+  } else if (py == 2011) {
+    bc <- .22
+  } else {
+    bc <- 0
+  }
+
+  # Bottom censoring
+  welfare[welfare <= bc] <- bc
+
   welfare
 }
 
@@ -62,23 +143,160 @@ get_cmd_welfare <- function(country_code, reporting_year, CF, qs) {
 #'
 #' @examples
 #' list_cmd_welfare(md, CF, qs)
-list_cmd_welfare <- function(md, CF, qs) {
+list_cmd_welfare <- function(md, CF, qs, py) {
+
   l_cmd <- vector("list", length = nrow(md))
+
   for (i in seq_len(nrow(md))) {
     country_code   <- md$country_code[i]
     reporting_year <- md$year[i]
     weight         <- md$reporting_pop[i]/length(qs)
 
-    welfare <- get_cmd_welfare(country_code, reporting_year, CF, qs)
+    welfare <- get_cmd_welfare(country_code,
+                               reporting_year,
+                               CF,
+                               qs,
+                               py = py)
 
+    # Add attributes
+    dt <- data.table(welfare         = welfare,
+                     weight          = weight,
+                     reporting_level = "national",
+                     country_code    = country_code,
+                     reporting_year  = reporting_year)
+
+    dt <- add_cmd_attributes(dt,
+                             country_code,
+                             reporting_year)
+
+
+    # Add to list
     if (is.null(welfare)) {
       l_cmd[[i]] <- NULL
     } else {
-      l_cmd[[i]] <- data.table(welfare = welfare,
-                               weight  = weight,
-                               area    = "national")
+      l_cmd[[i]] <- dt
     }
   }
   names(l_cmd) <- md[, id]
   l_cmd
 }
+
+
+#' Add important attributes to CMD data frame
+#'
+#' @param dt data frame: individual distribution from one country-year
+#' @param country_code character: character vector of length 1 giving country's iso3c code
+#' @param reporting_year numeric: vector of length 1 giving reporting year
+#'
+#' @return data frame: same as input but with added attributes
+#' @export
+add_cmd_attributes <- function(dt, country_code, reporting_year) {
+
+  # reporting year
+  attr(dt,
+       "reporting_year") <- reporting_year
+
+  # country_code
+  attr(dt,
+       "country_code") <- country_code
+
+  # Reporting level
+  attr(dt,
+       "reporting_level_rows") <-
+    list(reporting_level = "national",
+         rows            = nrow(dt))
+
+  # dist stats
+  attr(dt,
+       "dist_stats") <- get_dist_stats(dt)
+
+  # lineup approach
+  attr(dt,
+       "lineup_approach") <- "missing_data"
+
+  dt
+
+}
+
+
+
+
+
+
+
+
+#' Write all CMD distributions as qs files, including attributes
+#'
+#' @param l_cmd list of data frames of CMD distributions, output from [list_cmd_welfare]
+#' @param path location of where to write these files
+#'
+#' @return logical: invisible
+#' @export
+write_cmd_dist <- function(l_cmd, path) {
+
+    # all country years
+    country_years <- names(l_cmd)
+
+    lapply(cli::cli_progress_along(country_years,
+                                   total = length(country_years)),
+
+           FUN = \(i) {
+
+             x  <- l_cmd[[i]]
+             cn <- country_years[i]
+
+             qs::qsave(x    = x,
+                       file = fs::path(path,
+                                       paste0(cn,
+                                              ".qs")))
+           })
+    invisible(TRUE)
+  }
+
+
+
+#' Load coefficients from github
+#'
+#' @return list: two data frames with coeffs
+#' @export
+load_coeff <- function() {
+
+  gh_user   <- "https://raw.githubusercontent.com"
+  org_data  <- paste(gh_user,
+                     "PIP-Technical-Team",
+                     "aux_missing_countries",
+                     "qs_file",
+                     "04-outputdata/cmd_coeff.qs",
+                     sep = "/")
+
+  temp_file <- tempfile(fileext = fs::path_ext("cmd_coeff.qs"))
+  req <- httr::GET(org_data,
+                   # write result to disk
+                   httr::write_disk(path = temp_file))
+
+  qs::qread(temp_file)
+
+}
+
+
+
+#' Get qs inputs by giving the number of quantiles
+#'
+#' @param n: number of quantiles
+#'
+#' @return
+#' @export
+calc_quantiles <- function(n = 1000) {
+  quantiles <- seq(1, n, 1)/n - 5/(n*10)
+  qs        <- log(quantiles/(1-quantiles))
+  qs
+}
+
+
+
+
+
+
+
+
+
