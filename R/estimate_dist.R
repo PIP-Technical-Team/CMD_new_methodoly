@@ -1,18 +1,22 @@
 library(fastverse)
 library(pipdata)
 source("R/utils.R")
+source("R/scale_weights.R")
 
 # Prep coefficients data ---------
 
 ## main parameters ----------
-release <- "20250401_2021_01_02_PROD"
-dir     <-
+release <- "20250930_2021_01_02_PROD"
+py <- strsplit(release, "_")[[1]][2] |>
+  as.numeric()
+#dir     <-
 aux_dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
   fs::path(release,
            "_aux")
 # temp saving location
-lineup_dir <- "E:/PIP/pipapi_test_folder/20250401_2021_01_02_TEST" |>
-  fs::path("lineup_data")
+lineup_dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
+  fs::path(release,
+           "lineup_data")
 save_dir <- lineup_dir |>
   fs::path("CMD")
 
@@ -20,66 +24,61 @@ save_dir <- lineup_dir |>
 fs::path("data/cmd_coeff.Rda") |>
   load()
 
-CF <- as.data.table(data)
-
-CF[, `:=`(
-  # Tier 1 component 1
-  t1_comp1 = tier1_int +
-    (tier1_gdp * log(gdp)) +
-    (tier1_u5m * log(u5m)) +
-    (tier1_rps * rps) +
-    (tier1_leb * leb) +
-    (tier1_inc * inc) +
-    (tier1_incgdp * inc * log(gdp)),
-
-  # Tier 1 quantile factor
-  t1_qf = tier1_pct + (tier1_eca*eca+tier1_lac*lac+tier1_ssa*ssa),
-
-  # Tier 2 component 1
-  t2_comp1 = tier2_int +
-    (tier2_u5m * log(u5m)) +
-    (tier2_rps * rps) +
-    (tier2_leb *leb) +
-    (tier2_lmc * lmc + tier2_umc * umc) +
-    (tier2_hic * hic),
-
-  # Tier 2 quantile factor
-  t2_qf = tier2_pct + (tier2_eca*eca+tier2_lac*lac+tier2_ssa*ssa)
-  )
-  ]
-
-CF <- CF[,
-         .(code,
-           year,
-           t1_comp1,
-           t1_qf,
-           t2_comp1,
-           t2_qf,
-           tier1_sme,
-           tier2_sme)]
+CF <- load_coeff()
+if (py == 2021) {
+  CF <- CF$ppp2021
+} else if (py == 2017) {
+  CF <- CF$ppp2017
+}
 
 # Quantiles
-n         <- 1000
-quantiles <- seq(1,n,1)/n - 0.0005
-qs        <- log(quantiles/(1-quantiles))
+qs <- calc_quantiles(n = 100000)
 
 
 ## MD countries
-md <- fs::path(aux_dir, "missing_data.qs") |>
-  qs::qread() |>
+md <- fs::path(aux_dir, "missing_data.fst") |>
+  fst::read_fst() |>
   ftransform(id = paste(country_code,
                         year,
-                        sep = "_"))
-
+                        sep = "_")) |>
+  qDT()
 
 # Usage:
+t1 <- Sys.time()
 l_cmd <- list_cmd_welfare(md,
                           CF,
-                          qs)
+                          qs,
+                          py = py)
+t2 <- Sys.time()
+print(t2 - t1)
+# Time difference of 7.6113007 mins when n = 1000
+
+
+
+# Scale populations
+pop   <- get_pop_to_scale(aux_dir = aux_dir)
+l_cmd <- scale_weights(l_cmd = l_cmd,
+                       pop   = pop)
 
 # write
 write_cmd_dist(l_cmd,
                path = save_dir)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # test that it works
 ABW1986 <- load_refy("ABW",

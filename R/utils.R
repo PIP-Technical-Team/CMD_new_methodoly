@@ -220,7 +220,6 @@ load_coeff <- function() {
 #' @return
 #' @export
 calc_quantiles <- function(n = 1000) {
-  n         <- 1000
   quantiles <- seq(1, n, 1)/n - 5/(n*10)
   qs        <- log(quantiles/(1-quantiles))
   qs
