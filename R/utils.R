@@ -1,3 +1,70 @@
+#' Estimate and save country by country
+#'
+#' First load pop from aux, then go through each country and
+#' estimate CMD, scale pops, and save
+#'
+#' The reason this is used, is that when number of quantiles is larges
+#' (e.g. 100k) then the list becomes too large to keep fully in memory
+#'
+#' @param md missing data countries
+#' @param CF coefficients
+#' @param qs quantiles
+#' @param py ppp year
+#' @param dir directory for lineups
+#'
+#' @return
+#' @export
+estimate_and_write_full_cmd <- function(md,
+                                        CF,
+                                        qs,
+                                        py,
+                                        dir) {
+
+  aux_dir <- fs::path(dir,
+                      "_aux")
+  print(aux_dir)
+
+  lineup_dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
+    fs::path(release,
+             "lineup_data")
+  save_dir <- lineup_dir |>
+    fs::path("CMD")
+
+  # Load pop data
+  #--------------------------
+  pop     <- get_pop_to_scale(aux_dir = aux_dir)
+
+  # Loop country estimate & save
+  #--------------------------
+  countries <- md$country_code |>
+    funique()
+  for (x in seq_along(countries)) {
+    print(x)
+    cn <- countries[x]
+    print(cn)
+    l_cmd <- list_cmd_welfare(md |>
+                                fsubset(country_code == cn),
+                              CF,
+                              qs,
+                              py = py)
+
+    l_cmd <- scale_weights(l_cmd = l_cmd,
+                           pop   = pop)
+
+    # write
+    write_cmd_dist(l_cmd,
+                   path = save_dir)
+
+
+  }
+
+  return(invisible(TRUE))
+
+}
+
+
+
+
 # country estimates by country -------
 #' Calculate welfare distribution for a country-year
 #'

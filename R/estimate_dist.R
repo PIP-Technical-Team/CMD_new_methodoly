@@ -3,24 +3,22 @@ library(pipdata)
 source("R/utils.R")
 source("R/scale_weights.R")
 
-# Prep coefficients data ---------
 
-## main parameters ----------
+# main parameters ----------
+#----------------------------
 release <- "20250930_2021_01_02_PROD"
 py <- strsplit(release, "_")[[1]][2] |>
   as.numeric()
-#dir     <-
+
 aux_dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
   fs::path(release,
            "_aux")
 # temp saving location
-lineup_dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
-  fs::path(release,
-           "lineup_data")
-save_dir <- lineup_dir |>
-  fs::path("CMD")
+dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
+  fs::path(release)
 
-## clean coeff data -----------
+# clean coeff data -----------
+#----------------------------
 fs::path("data/cmd_coeff.Rda") |>
   load()
 
@@ -32,10 +30,12 @@ if (py == 2021) {
 }
 
 # Quantiles
+#----------------------------
 qs <- calc_quantiles(n = 100000)
 
 
 ## MD countries
+#----------------------------
 md <- fs::path(aux_dir, "missing_data.fst") |>
   fst::read_fst() |>
   ftransform(id = paste(country_code,
@@ -43,40 +43,18 @@ md <- fs::path(aux_dir, "missing_data.fst") |>
                         sep = "_")) |>
   qDT()
 
-# Usage:
-t1 <- Sys.time()
-l_cmd <- list_cmd_welfare(md,
-                          CF,
-                          qs,
-                          py = py)
-t2 <- Sys.time()
-print(t2 - t1)
-# Time difference of 7.6113007 mins when n = 1000
+# Estimate and save
+#----------------------------
+estimate_and_write_full_cmd(md  = md,
+                            CF  = CF,
+                            qs  = qs,
+                            py  = py,
+                            dir = dir)
 
 
 
-# Scale populations
-pop   <- get_pop_to_scale(aux_dir = aux_dir)
-l_cmd <- scale_weights(l_cmd = l_cmd,
-                       pop   = pop)
-
-# write
-write_cmd_dist(l_cmd,
-               path = save_dir)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Test
+#----------------------------
 
 
 
