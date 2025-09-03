@@ -19,23 +19,37 @@
 #'
 #' @examples
 #' get_cmd_welfare("ETH", 2021, CF, qs)
-get_cmd_welfare <- function(country_code, reporting_year, CF, qs) {
+get_cmd_welfare <- function(country_code, reporting_year, CF, qs, py = 2021) {
 
   cf <- CF[code == country_code & year == reporting_year]
   stopifnot(nrow(cf) == 1)
   welfare <- if (nrow(cf) == 1) {
     if (is.na(cf$t1_comp1)) {
-      # Tier 2
       lny <- cf$t2_comp1 + cf$t2_qf * qs
-      exp(lny) * cf$tier2_sme
+      exp(lny)
     } else {
-      # Tier 1
       lny <- cf$t1_comp1 + cf$t1_qf * qs
-      exp(lny) * cf$tier1_sme
+      exp(lny)
     }
   } else {
     NULL
   }
+
+  # bottom censoring
+  if (py == 2021) {
+    bc <- 0.28
+
+  } else if (py == 2017) {
+    bc <- .25
+  } else if (py == 2011) {
+    bc <- .22
+  } else {
+    bc <- 0
+  }
+
+  # Bottom censoring
+  welfare[welfare <= bc] <- bc
+
   welfare
 }
 
@@ -62,8 +76,10 @@ get_cmd_welfare <- function(country_code, reporting_year, CF, qs) {
 #'
 #' @examples
 #' list_cmd_welfare(md, CF, qs)
-list_cmd_welfare <- function(md, CF, qs) {
+list_cmd_welfare <- function(md, CF, qs, py) {
+
   l_cmd <- vector("list", length = nrow(md))
+
   for (i in seq_len(nrow(md))) {
     country_code   <- md$country_code[i]
     reporting_year <- md$year[i]
@@ -72,12 +88,16 @@ list_cmd_welfare <- function(md, CF, qs) {
     welfare <- get_cmd_welfare(country_code,
                                reporting_year,
                                CF,
-                               qs)
+                               qs,
+                               py = py)
 
     # Add attributes
     dt <- data.table(welfare         = welfare,
                      weight          = weight,
-                     reporting_level = "national")
+                     reporting_level = "national",
+                     country_code    = country_code,
+                     reporting_year  = reporting_year)
+
     dt <- add_cmd_attributes(dt,
                              country_code,
                              reporting_year)
@@ -165,6 +185,47 @@ write_cmd_dist <- function(l_cmd, path) {
            })
     invisible(TRUE)
   }
+
+
+
+#' Load coefficients from github
+#'
+#' @return list: two data frames with coeffs
+#' @export
+load_coeff <- function() {
+
+  gh_user   <- "https://raw.githubusercontent.com"
+  org_data  <- paste(gh_user,
+                     "PIP-Technical-Team",
+                     "aux_missing_countries",
+                     "qs_file",
+                     "04-outputdata/cmd_coeff.qs",
+                     sep = "/")
+
+  temp_file <- tempfile(fileext = fs::path_ext("cmd_coeff.qs"))
+  req <- httr::GET(org_data,
+                   # write result to disk
+                   httr::write_disk(path = temp_file))
+
+  qs::qread(temp_file)
+
+}
+
+
+
+#' Get qs inputs by giving the number of quantiles
+#'
+#' @param n: number of quantiles
+#'
+#' @return
+#' @export
+calc_quantiles <- function(n = 1000) {
+  n         <- 1000
+  quantiles <- seq(1, n, 1)/n - 5/(n*10)
+  qs        <- log(quantiles/(1-quantiles))
+  qs
+}
+
 
 
 
