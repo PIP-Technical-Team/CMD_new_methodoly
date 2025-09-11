@@ -3,10 +3,9 @@ library(pipdata)
 source("R/utils.R")
 source("R/scale_weights.R")
 
-
 # main parameters ----------
 #----------------------------
-release <- "20250930_2017_01_02_PROD"
+release <- "20250930_2021_01_02_PROD"
 py <- strsplit(release, "_")[[1]][2] |>
   as.numeric()
 
@@ -31,15 +30,12 @@ if (py == 2021) {
 
 # Quantiles
 #----------------------------
-qs <- calc_quantiles(n = 100000)
-
+qs <- calc_quantiles(n = 10000)
 
 ## MD countries
 #----------------------------
 
 md <- pipload::pip_load_aux("missing_data") |>
-  # fs::path(aux_dir, "missing_data.fst") |>
-  # fst::read_fst() |>
   ftransform(id = paste(country_code,
                         year,
                         sep = "_")) |>
@@ -47,26 +43,40 @@ md <- pipload::pip_load_aux("missing_data") |>
 
 # Estimate and save
 #----------------------------
-estimate_and_write_full_cmd(md  = md,
-                            CF  = CF,
-                            qs  = qs,
-                            py  = py,
-                            dir = dir)
+env_acc_dist_stats <- new.env(parent = .GlobalEnv)
+estimate_and_write_full_cmd(md      = md,
+                            CF      = CF,
+                            qs      = qs,
+                            py      = py,
+                            dir     = dir,
+                            env_acc = env_acc_dist_stats)
 
-# Test
+# Dist stats
 #----------------------------
+all_dist_stats <- data.table::rbindlist(as.list(env_acc_dist_stats),
+                                        use.names = TRUE,
+                                        fill      = TRUE)
+setorder(all_dist_stats,
+         country_code,
+         reporting_year)
+fst::write.fst(all_dist_stats,
+               path = fs::path(dir,
+                               "estimations/CMD_dist_stats.fst"))
+# Merge CMD and LD dist stats and save
+#----------------------------
+ld_dist <- fst::read_fst(path = fs::path(version_path,
+                                          "estimations/LD_dist_stats.fst"),
+                          as.data.table = TRUE)
 
-# # test that it works
-# ABW1986 <- load_refy("ABW",
-#                      1986,
-#                      path = save_dir)
-# attributes(ABW1986)
-#
-# # Remove NULL elements from l_cmd
-#
-# # Split l_cmd into two lists: non-NULL and NULL elements
-# l_cmd_ok   <- l_cmd[!sapply(l_cmd, is.null)]
-# l_cmd_fail <- l_cmd[sapply(l_cmd, is.null)]
-# names(l_cmd_fail)
+all_dist_stats <-
+  rowbind(all_dist_stats,
+          ld_dist)
+setorder(all_dist_stats,
+         country_code,
+         reporting_year)
+fst::write.fst(all_dist_stats,
+               path = fs::path(version_path,
+                               "estimations/lineup_dist_stats.fst"))
+
 
 
