@@ -15,6 +15,9 @@ aux_dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
 # temp saving location
 dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
   fs::path(release)
+dir_dist_stats <-
+  "P:/02.personal/wb612474/pip-technical/pip-lineups-pipeline-objects" |>
+  fs::path(release)
 
 # clean coeff data -----------
 #----------------------------
@@ -60,13 +63,17 @@ setorder(all_dist_stats,
          country_code,
          reporting_year)
 fst::write.fst(all_dist_stats,
-               path = fs::path(dir,
-                               "estimations/CMD_dist_stats.fst"))
+               path = fs::path(dir_dist_stats,
+                               "CMD_dist_stats.fst"))
 # Merge CMD and LD dist stats and save
 #----------------------------
-ld_dist <- fst::read_fst(path = fs::path(version_path,
-                                          "estimations/LD_dist_stats.fst"),
+ld_dist <- fst::read_fst(path = fs::path(dir_dist_stats,
+                                          "LD_dist_stats.fst"),
                           as.data.table = TRUE)
+all_dist_stats <- fst::read_fst(
+               path = fs::path(dir_dist_stats,
+                               "CMD_dist_stats.fst"),
+               as.data.table = TRUE)
 
 all_dist_stats <-
   rowbind(all_dist_stats,
@@ -75,8 +82,12 @@ setorder(all_dist_stats,
          country_code,
          reporting_year)
 fst::write.fst(all_dist_stats,
-               path = fs::path(version_path,
+               path = fs::path(dir,
                                "estimations/lineup_dist_stats.fst"))
+
+fst::write.fst(all_dist_stats,
+               path = fs::path(dir_dist_stats,
+                               "lineup_dist_stats.fst"))
 
 
 
