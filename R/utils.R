@@ -18,7 +18,8 @@ estimate_and_write_full_cmd <- function(md,
                                         CF,
                                         qs,
                                         py,
-                                        dir) {
+                                        dir,
+                                        env_acc = NULL) {
 
   aux_dir <- fs::path(dir,
                       "_aux")
@@ -46,10 +47,13 @@ estimate_and_write_full_cmd <- function(md,
                                 fsubset(country_code == cn),
                               CF,
                               qs,
-                              py = py)
+                              py = py,
+                              env_acc = env_acc)
 
     l_cmd <- scale_weights(l_cmd = l_cmd,
                            pop   = pop)
+
+    l_cmd <- select_and_order(l_cmd)
 
     # write
     write_cmd_dist(l_cmd,
@@ -62,7 +66,23 @@ estimate_and_write_full_cmd <- function(md,
 
 }
 
+#' Select and order columns in a list of data.tables
+#'
+#' Selects `welfare`, `weight`, and `reporting_level` columns from each data.table
+#' in the list and orders rows by `welfare`.
+#'
+#' @param l_cmd A list of `data.table` objects.
+#' @return A list of modified `data.table`s with selected and ordered columns.
+#' @export
+select_and_order <- function(l_cmd) {
+  lapply(l_cmd, function(dt) {
+    dt <- dt[, .(welfare, weight, reporting_level)]
 
+    dt <- get_csum_dist(dt)
+
+    dt
+  })
+}
 
 
 # country estimates by country -------
@@ -132,6 +152,8 @@ get_cmd_welfare <- function(country_code, reporting_year, CF, qs, py = 2021) {
 #' Each row is a country-year to process.
 #' @param CF data.table. Coefficient table as required by get_cmd_welfare().
 #' @param qs Numeric vector. Vector of quantiles (logit transformed).
+#' @param env_acc environment: where dist stats will be accumulated before
+#' appending them and saving them
 #'
 #' @details
 #' For each row in md, the function calls get_cmd_welfare() and constructs a
@@ -143,7 +165,7 @@ get_cmd_welfare <- function(country_code, reporting_year, CF, qs, py = 2021) {
 #'
 #' @examples
 #' list_cmd_welfare(md, CF, qs)
-list_cmd_welfare <- function(md, CF, qs, py) {
+list_cmd_welfare <- function(md, CF, qs, py, env_acc = NULL) {
 
   l_cmd <- vector("list", length = nrow(md))
 
@@ -161,13 +183,14 @@ list_cmd_welfare <- function(md, CF, qs, py) {
     # Add attributes
     dt <- data.table(welfare         = welfare,
                      weight          = weight,
-                     reporting_level = "national",
                      country_code    = country_code,
-                     reporting_year  = reporting_year)
+                     reporting_year  = reporting_year,
+                     reporting_level = "national")
 
     dt <- add_cmd_attributes(dt,
                              country_code,
-                             reporting_year)
+                             reporting_year,
+                             env_acc = env_acc)
 
 
     # Add to list
@@ -190,7 +213,7 @@ list_cmd_welfare <- function(md, CF, qs, py) {
 #'
 #' @return data frame: same as input but with added attributes
 #' @export
-add_cmd_attributes <- function(dt, country_code, reporting_year) {
+add_cmd_attributes <- function(dt, country_code, reporting_year, env_acc = NULL) {
 
   # reporting year
   attr(dt,
@@ -200,15 +223,18 @@ add_cmd_attributes <- function(dt, country_code, reporting_year) {
   attr(dt,
        "country_code") <- country_code
 
-  # Reporting level
-  attr(dt,
-       "reporting_level_rows") <-
-    list(reporting_level = "national",
-         rows            = nrow(dt))
-
   # dist stats
+  dist <- get_dist_stats(dt)
   attr(dt,
-       "dist_stats") <- get_dist_stats(dt)
+       "dist_stats") <- dist
+
+  # Save dist_stats to env_acc if provided
+  if (!is.null(env_acc)) {
+    key <- paste(country_code, reporting_year, sep = "_")
+    rlang::env_poke(env   = env_acc,
+                    nm    = key,
+                    value = dist$dt_dist)
+  }
 
   # lineup approach
   attr(dt,
@@ -245,10 +271,10 @@ write_cmd_dist <- function(l_cmd, path) {
              x  <- l_cmd[[i]]
              cn <- country_years[i]
 
-             qs::qsave(x    = x,
-                       file = fs::path(path,
-                                       paste0(cn,
-                                              ".qs")))
+             fst::write_fst(x    = x,
+                            path = fs::path(path,
+                                            paste0(cn,
+                                                   ".fst")))
            })
     invisible(TRUE)
   }
@@ -293,6 +319,48 @@ calc_quantiles <- function(n = 1000) {
 }
 
 
+
+
+
+get_csum_dist <- function(qq) {
+
+  first_rows <- data.table(reporting_level = funique(qq$reporting_level)) |>
+    fmutate(welfare = 0,
+            weight  = 0)
+  qq <- rowbind(qq,
+                first_rows) |>
+    setorder(reporting_level, welfare)
+
+  qq[, `:=`(
+    cw     = weight,
+    cwy    = weight*welfare,
+    cwy2   = weight*welfare*welfare,
+    cwylog = log(pmax(welfare, 1e-10))*weight  # for the watts
+  )]
+
+
+  # fix bug
+  g <- GRP(qq, ~ reporting_level,
+           sort = FALSE # I still don't understand this argument. I think it could
+           # be FALSE because the data is already sorted, but I am not sure.
+  )
+
+  csum <-  add_vars(get_vars(qq,
+                             c("reporting_level",
+                               "welfare",
+                               "weight")),
+                    get_vars(qq,
+                             c("cw",
+                               "cwy",
+                               "cwy2",
+                               "cwylog")) |>
+                      fcumsum(g)) # Here you do fcumsum by reporting_level
+
+  csum[, index := as.integer(rowid(reporting_level) - 1)]
+
+  csum
+
+}
 
 
 
