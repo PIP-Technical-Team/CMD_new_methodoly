@@ -62,6 +62,16 @@ all_dist_stats <- data.table::rbindlist(as.list(env_acc_dist_stats),
 setorder(all_dist_stats,
          country_code,
          reporting_year)
+
+cm <- aux_dir |>
+  fs::path("missing_data.fst") |>
+  fst::read.fst()
+all_dist_stats <-
+  all_dist_stats |>
+  joyn::left_join(y = cm |>
+                    fselect(country_code, reporting_year = year, welfare_type),
+                  reportvar = FALSE)
+
 fst::write.fst(all_dist_stats,
                path = fs::path(dir_dist_stats,
                                "CMD_dist_stats.fst"))
@@ -74,14 +84,14 @@ all_dist_stats <- fst::read_fst(
                path = fs::path(dir_dist_stats,
                                "CMD_dist_stats.fst"),
                as.data.table = TRUE)
-cm <- aux_dir |>
-  fs::path("missing_data.fst") |>
-  fst::read.fst()
-all_dist_stats <-
-  all_dist_stats |>
-  joyn::left_join(y = cm |>
-                    fselect(country_code, reporting_year = year, welfare_type),
-                  reportvar = FALSE)
+# cm <- aux_dir |>
+#   fs::path("missing_data.fst") |>
+#   fst::read.fst()
+# all_dist_stats <-
+#   all_dist_stats |>
+#   joyn::left_join(y = cm |>
+#                     fselect(country_code, reporting_year = year, welfare_type),
+#                   reportvar = FALSE)
 
 
 all_dist_stats <-
