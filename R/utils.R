@@ -28,8 +28,8 @@ estimate_and_write_full_cmd <- function(md,
   lineup_dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
     fs::path(release,
              "lineup_data")
-  save_dir <- lineup_dir |>
-    fs::path("CMD")
+  save_dir <- lineup_dir #|>
+    #fs::path("CMD")
 
   # Load pop data
   #--------------------------
