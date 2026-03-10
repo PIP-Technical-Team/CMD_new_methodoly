@@ -28,8 +28,8 @@ estimate_and_write_full_cmd <- function(md,
   lineup_dir <- Sys.getenv("PIPAPI_DATA_ROOT_FOLDER_LOCAL") |>
     fs::path(release,
              "lineup_data")
-  save_dir <- lineup_dir |>
-    fs::path("CMD")
+  save_dir <- lineup_dir #|>
+    #fs::path("CMD")
 
   # Load pop data
   #--------------------------
@@ -285,13 +285,14 @@ write_cmd_dist <- function(l_cmd, path) {
 #'
 #' @return list: two data frames with coeffs
 #' @export
-load_coeff <- function() {
+load_coeff <- function(branch = "qs_file") {
 
   gh_user   <- "https://raw.githubusercontent.com"
   org_data  <- paste(gh_user,
                      "PIP-Technical-Team",
                      "aux_missing_countries",
-                     "qs_file",
+                     #"qs_file",
+                     branch,
                      "04-outputdata/cmd_coeff.qs",
                      sep = "/")
 

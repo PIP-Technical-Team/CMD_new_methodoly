@@ -5,7 +5,7 @@ source("R/scale_weights.R")
 
 # main parameters ----------
 #----------------------------
-release <- "20250930_2021_01_02_PROD"
+release <- "20260324_2021_01_02_PROD" #"20250930_2021_01_02_PROD"
 py <- strsplit(release, "_")[[1]][2] |>
   as.numeric()
 
@@ -24,7 +24,7 @@ dir_dist_stats <-
 fs::path("data/cmd_coeff.Rda") |>
   load()
 
-CF <- load_coeff()
+CF <- load_coeff(branch = "2026_03_update") # set correct branch
 if (py == 2021) {
   CF <- CF$ppp2021
 } else if (py == 2017) {
@@ -62,6 +62,16 @@ all_dist_stats <- data.table::rbindlist(as.list(env_acc_dist_stats),
 setorder(all_dist_stats,
          country_code,
          reporting_year)
+
+cm <- aux_dir |>
+  fs::path("missing_data.fst") |>
+  fst::read.fst()
+all_dist_stats <-
+  all_dist_stats |>
+  joyn::left_join(y = cm |>
+                    fselect(country_code, reporting_year = year, welfare_type),
+                  reportvar = FALSE)
+
 fst::write.fst(all_dist_stats,
                path = fs::path(dir_dist_stats,
                                "CMD_dist_stats.fst"))
@@ -74,6 +84,15 @@ all_dist_stats <- fst::read_fst(
                path = fs::path(dir_dist_stats,
                                "CMD_dist_stats.fst"),
                as.data.table = TRUE)
+# cm <- aux_dir |>
+#   fs::path("missing_data.fst") |>
+#   fst::read.fst()
+# all_dist_stats <-
+#   all_dist_stats |>
+#   joyn::left_join(y = cm |>
+#                     fselect(country_code, reporting_year = year, welfare_type),
+#                   reportvar = FALSE)
+
 
 all_dist_stats <-
   rowbind(all_dist_stats,
