@@ -5,7 +5,7 @@ source("R/scale_weights.R")
 
 # main parameters ----------
 #----------------------------
-release <- "20250930_2021_01_02_PROD"
+release <- "20260324_2021_01_02_PROD" #"20250930_2021_01_02_PROD"
 py <- strsplit(release, "_")[[1]][2] |>
   as.numeric()
 
@@ -24,7 +24,7 @@ dir_dist_stats <-
 fs::path("data/cmd_coeff.Rda") |>
   load()
 
-CF <- load_coeff()
+CF <- load_coeff(branch = "2026_03_update") # set correct branch
 if (py == 2021) {
   CF <- CF$ppp2021
 } else if (py == 2017) {
